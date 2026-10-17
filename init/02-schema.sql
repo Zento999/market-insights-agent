@@ -64,3 +64,7 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (report_date, report_type)
 );
+
+
+-- วันที่เริ่มนับข้อมูล (กัน ticker ที่ถูกนำกลับมาใช้ใหม่)
+ALTER TABLE stocks ADD COLUMN IF NOT EXISTS listed_since DATE;
