@@ -68,3 +68,16 @@ CREATE TABLE IF NOT EXISTS ai_reports (
 
 -- วันที่เริ่มนับข้อมูล (กัน ticker ที่ถูกนำกลับมาใช้ใหม่)
 ALTER TABLE stocks ADD COLUMN IF NOT EXISTS listed_since DATE;
+
+
+-- 6) เวกเตอร์ความหมายของข่าว (1 ข่าว = 1 เวกเตอร์)
+CREATE TABLE IF NOT EXISTS news_embeddings (
+    article_id  BIGINT PRIMARY KEY REFERENCES news_articles(id) ON DELETE CASCADE,
+    model       TEXT NOT NULL,
+    embedding   vector(1024) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Index สำหรับค้นหาเวกเตอร์ที่ใกล้ที่สุดได้เร็ว
+CREATE INDEX IF NOT EXISTS idx_news_embeddings_hnsw
+    ON news_embeddings USING hnsw (embedding vector_cosine_ops);
