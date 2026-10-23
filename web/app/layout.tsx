@@ -30,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-semibold">📈 Market Insights</Link>
             <Link href="/" className="text-zinc-400 hover:text-zinc-100">หน้าแรก</Link>
             <Link href="/news" className="text-zinc-400 hover:text-zinc-100">ข่าว</Link>
+            <Link href="/ask" className="text-zinc-400 hover:text-zinc-100">ถาม AI</Link>
           </div>
         </nav>
         {children}
