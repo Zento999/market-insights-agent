@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
-  getMarketSummary, getLatestBrief, getSectorPerformance, getTopMovers,
-  type DailyBrief, type SectorPerf, type Mover,
+  getMarketSummary, getLatestBrief, getSectorPerformance, getTopMovers, getAllStocks,
+  type DailyBrief, type SectorPerf, type Mover, type StockRow,
 } from "@/lib/queries";
 import { changeColor, formatPct } from "@/lib/format";
 
@@ -96,13 +96,41 @@ function MoverList({ movers }: { movers: Mover[] }) {
   );
 }
 
+function AllStocks({ stocks }: { stocks: StockRow[] }) {
+  const cols = "grid grid-cols-[5rem_1fr_6rem_5rem] items-center gap-3 px-4";
+  return (
+    <section className="mt-8">
+      <h2 className="mb-3 font-semibold">📋 หุ้นทั้งหมด ({stocks.length})</h2>
+      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+        <div className={`${cols} border-b border-zinc-800 py-2 text-xs text-zinc-500`}>
+          <span>หุ้น</span>
+          <span>กลุ่ม</span>
+          <span className="text-right">ราคา</span>
+          <span className="text-right">เปลี่ยน</span>
+        </div>
+        <div className="divide-y divide-zinc-800">
+          {stocks.map((s) => (
+            <Link key={s.symbol} href={`/stocks/${s.symbol}`} className={`${cols} py-2.5 text-sm hover:bg-zinc-800/60`}>
+              <span className="font-semibold">{s.symbol}</span>
+              <span className="truncate text-zinc-400">{s.sector}</span>
+              <span className="text-right">{s.close === null ? "-" : `$${s.close.toFixed(2)}`}</span>
+              <span className={`text-right ${changeColor(s.change_pct)}`}>{formatPct(s.change_pct)}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ---------- หน้าแรก ----------
 export default async function Home() {
-  const [summary, brief, sectors, movers] = await Promise.all([
+  const [summary, brief, sectors, movers, stocks] = await Promise.all([
     getMarketSummary(),
     getLatestBrief(),
     getSectorPerformance(),
     getTopMovers(),
+    getAllStocks(),
   ]);
   const dateTh = new Date(summary.trade_date + "T00:00:00").toLocaleDateString("th-TH", {
     dateStyle: "long",
@@ -127,7 +155,8 @@ export default async function Home() {
         <SectorGrid sectors={sectors} />
         <MoverList movers={movers} />
       </div>
+
+      <AllStocks stocks={stocks} />
     </main>
   );
 }
-

@@ -168,3 +168,28 @@ export async function getStockNews(symbol: string, limit = 8): Promise<NewsItem[
   `, [symbol.toUpperCase(), limit]);
   return rows;
 }
+
+
+export type StockRow = {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  close: number | null;
+  change_pct: number | null;
+};
+
+// หุ้นทุกตัวที่ติดตาม พร้อมราคาและ % ล่าสุด
+export async function getAllStocks(): Promise<StockRow[]> {
+  await connection();
+  const { rows } = await pool.query<StockRow>(`
+    WITH ${LATEST}
+    SELECT s.symbol, s.name, s.sector,
+           l.close::float AS close,
+           ROUND((l.close / l.prev_close - 1) * 100, 2)::float AS change_pct
+    FROM stocks s
+    LEFT JOIN latest l ON l.stock_id = s.id
+    WHERE s.is_active
+    ORDER BY s.symbol
+  `);
+  return rows;
+}
