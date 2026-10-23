@@ -1,6 +1,6 @@
-import { getMarketSummary } from "@/lib/queries";
+import { getMarketSummary, getLatestBrief, type DailyBrief } from "@/lib/queries";
 
-// การ์ดตัวเลข 1 ใบ (component ที่ใช้ซ้ำได้)
+// การ์ดตัวเลข 1 ใบ
 function StatCard({ label, value, color = "text-zinc-100" }: {
   label: string;
   value: string | number;
@@ -14,9 +14,42 @@ function StatCard({ label, value, color = "text-zinc-100" }: {
   );
 }
 
-// หน้าแรก (async = รอข้อมูลจากฐานข้อมูลก่อนแสดงผล)
+// แปลง **ข้อความ** ให้เป็นตัวหนา
+function renderBold(line: string) {
+  return line.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="text-zinc-100">{part}</strong> : part
+  );
+}
+
+// การ์ดสรุปตลาดจาก AI
+function BriefCard({ brief }: { brief: DailyBrief | null }) {
+  if (!brief) return null;
+
+  return (
+    <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="font-semibold">🤖 สรุปตลาดประจำวัน</h2>
+        {brief.model && (
+          <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+            {brief.model}
+          </span>
+        )}
+      </div>
+      <div className="space-y-2 leading-relaxed text-zinc-300">
+        {brief.content
+          .split("\n")
+          .filter((line) => line.trim() !== "")
+          .map((line, i) => (
+            <p key={i}>{renderBold(line)}</p>
+          ))}
+      </div>
+    </section>
+  );
+}
+
+// หน้าแรก
 export default async function Home() {
-  const summary = await getMarketSummary();
+  const [summary, brief] = await Promise.all([getMarketSummary(), getLatestBrief()]);
   const dateTh = new Date(summary.trade_date + "T00:00:00").toLocaleDateString("th-TH", {
     dateStyle: "long",
   });
@@ -33,6 +66,8 @@ export default async function Home() {
         <StatCard label="ขึ้น" value={summary.up} color="text-emerald-400" />
         <StatCard label="ลง" value={summary.down} color="text-rose-400" />
       </section>
+
+      <BriefCard brief={brief} />
     </main>
   );
 }

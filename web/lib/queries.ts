@@ -32,3 +32,25 @@ export async function getMarketSummary(): Promise<MarketSummary> {
 
   return rows[0];
 }
+
+
+export type DailyBrief = {
+  report_date: string;
+  content: string;
+  model: string | null;
+};
+
+// รายงานสรุปตลาดล่าสุดที่ AI เขียนไว้
+export async function getLatestBrief(): Promise<DailyBrief | null> {
+  await connection();
+
+  const { rows } = await pool.query<DailyBrief>(`
+    SELECT to_char(report_date, 'YYYY-MM-DD') AS report_date, content, model
+    FROM ai_reports
+    WHERE report_type = 'daily_brief'
+    ORDER BY report_date DESC
+    LIMIT 1
+  `);
+
+  return rows[0] ?? null;
+}
