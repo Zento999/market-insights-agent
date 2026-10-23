@@ -193,3 +193,43 @@ export async function getAllStocks(): Promise<StockRow[]> {
   `);
   return rows;
 }
+
+
+export type NewsListItem = NewsItem & {
+  symbols: string[] | null;
+  distance: number | null;
+};
+
+// คอลัมน์ข่าวที่ใช้ซ้ำ (รวมรายชื่อหุ้นที่เกี่ยวข้องเป็น array)
+const NEWS_COLUMNS = `
+  a.title, a.url, a.source, LEFT(a.summary, 220) AS summary,
+  to_char(a.published_at, 'YYYY-MM-DD') AS published_date,
+  (SELECT array_agg(s.symbol ORDER BY s.symbol)
+     FROM news_stocks ns JOIN stocks s ON s.id = ns.stock_id
+    WHERE ns.article_id = a.id) AS symbols`;
+
+// ข่าวล่าสุด (ตอนยังไม่ได้ค้นหา)
+export async function getLatestNews(limit = 30): Promise<NewsListItem[]> {
+  await connection();
+  const { rows } = await pool.query<NewsListItem>(`
+    SELECT ${NEWS_COLUMNS}, NULL::float AS distance
+    FROM news_articles a
+    ORDER BY a.published_at DESC
+    LIMIT $1
+  `, [limit]);
+  return rows;
+}
+
+// ค้นข่าวด้วยความหมาย (เวกเตอร์ที่ใกล้ที่สุด)
+export async function searchNews(vector: number[], limit = 15): Promise<NewsListItem[]> {
+  await connection();
+  const { rows } = await pool.query<NewsListItem>(`
+    SELECT ${NEWS_COLUMNS},
+           ROUND((e.embedding <=> $1::vector)::numeric, 3)::float AS distance
+    FROM news_embeddings e
+    JOIN news_articles a ON a.id = e.article_id
+    ORDER BY e.embedding <=> $1::vector
+    LIMIT $2
+  `, [JSON.stringify(vector), limit]);
+  return rows;
+}
