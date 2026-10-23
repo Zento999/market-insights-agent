@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStock, getPriceHistory, getStockNews } from "@/lib/queries";
 import { changeColor, formatPct, formatDateTh } from "@/lib/format";
+import PriceChart from "@/components/PriceChart";
 
 function Stat({ label, value, color = "text-zinc-100" }: {
   label: string;
@@ -58,8 +59,11 @@ export default async function StockPage({ params }: { params: Promise<{ symbol: 
         <Stat label="ข้อมูลย้อนหลัง" value={`${history.length} วัน`} />
       </section>
 
-      <section className="mt-6 flex h-72 items-center justify-center rounded-xl border border-dashed border-zinc-700 text-zinc-500">
-        📈 กราฟราคาจะมาในบทที่ 41B
+      <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <PriceChart
+          data={history.map((p) => ({ time: p.date, value: p.close }))}
+          isUp={(yearChange ?? 0) >= 0}
+        />
       </section>
 
       <section className="mt-6">
