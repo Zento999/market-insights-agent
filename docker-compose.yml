@@ -38,6 +38,7 @@ services:
       GENERIC_TIMEZONE: Asia/Bangkok
       TZ: Asia/Bangkok
       WEBHOOK_URL: https://${NGROK_DOMAIN}/
+      N8N_PROXY_HOPS: 1
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:

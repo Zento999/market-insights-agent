@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T13:04:21.120Z",
+  "updatedAt": "2026-10-24T17:12:46.590Z",
   "createdAt": "2026-10-17T14:48:41.433Z",
   "id": "mSlGXzde7h8y6n2n",
   "name": "1 Fetch Prices",
@@ -12,23 +12,30 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        -96,
+        112
       ],
       "id": "810099b0-c23f-462a-9179-6a67d3895e21",
       "name": "When clicking ‘Execute workflow’"
     },
     {
       "parameters": {
-        "url": "=https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/{{ $now.setZone('America/New_York').minus({ days: 1 }).toFormat('yyyy-MM-dd') }}?adjusted=true",
+        "url": "=https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/{{ $json.date }}?adjusted=true",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 13000
+            }
+          }
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        224,
+        288,
         0
       ],
       "id": "36459da4-a3b0-43e3-8b7e-fa42fabc343b",
@@ -76,11 +83,32 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.4,
       "position": [
-        0,
-        -208
+        -96,
+        -112
       ],
       "id": "a3b21250-05f2-4ab5-b3cc-9d39655b99ae",
       "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT to_char(d, 'YYYY-MM-DD') AS date\nFROM generate_series(\n  GREATEST((SELECT MAX(trade_date) FROM daily_prices) + 1, CURRENT_DATE - 10),\n  (now() AT TIME ZONE 'America/New_York')::date - 1,\n  INTERVAL '1 day'\n) AS d\nWHERE EXTRACT(ISODOW FROM d) < 6\nORDER BY d;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        96,
+        0
+      ],
+      "id": "443cca0b-bd28-45f0-9685-f4be666f6514",
+      "name": "Missing Dates",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "connections": {
@@ -88,7 +116,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request",
+            "node": "Missing Dates",
             "type": "main",
             "index": 0
           }
@@ -107,6 +135,17 @@
       ]
     },
     "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Missing Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missing Dates": {
       "main": [
         [
           {
@@ -137,9 +176,9 @@
   },
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "b6040e3d-b969-46d8-be3f-6367ad092b6f",
-  "activeVersionId": "ce7650bd-389a-47ad-9b89-4d0f424aa0c7",
-  "versionCounter": 23,
+  "versionId": "3b4dbfe5-c964-4fca-9795-767a08bd6817",
+  "activeVersionId": "3b4dbfe5-c964-4fca-9795-767a08bd6817",
+  "versionCounter": 38,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "tags": [
@@ -171,7 +210,7 @@
     }
   ],
   "versionMetadata": {
-    "name": null,
-    "description": null
+    "name": "Version 3b4dbfe5",
+    "description": ""
   }
 }
