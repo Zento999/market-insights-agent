@@ -1,5 +1,6 @@
 # Automated Market & Stock Insights Agent - local stack
 name: market-insights
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -19,7 +20,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-  
+
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.43.7
     container_name: mi-n8n
@@ -59,7 +60,6 @@ services:
               count: all
               capabilities: [gpu]
 
-    
   ngrok:
     image: ngrok/ngrok:latest
     container_name: mi-ngrok
@@ -70,6 +70,21 @@ services:
     depends_on:
       - n8n
 
+  web:
+    build: ./web
+    container_name: mi-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgres://web_reader:${WEB_DB_PASSWORD}@postgres:5432/market_insights
+      OLLAMA_URL: http://ollama:11434
+      N8N_ASK_URL: http://n8n:5678/webhook/web-ask
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      TZ: Asia/Bangkok
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
