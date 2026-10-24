@@ -1,0 +1,215 @@
+{
+  "updatedAt": "2026-10-18T08:59:34.774Z",
+  "createdAt": "2026-10-17T19:38:25.121Z",
+  "id": "dwQZsajbCkxms32g",
+  "name": "1 Embed News",
+  "description": "Fetch Prices · Fetch News · Embed News · Backfill Prices",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "17f9cb31-2d52-496d-85f7-76d359e3ab0a",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id,\n       a.title || '. ' || COALESCE(a.summary, '') AS text\nFROM news_articles a\nLEFT JOIN news_embeddings e ON e.article_id = a.id\nWHERE e.article_id IS NULL\nORDER BY a.id\nLIMIT 200;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "3c49f5fa-f465-49e5-b8df-b3e3317112b7",
+      "name": "Get Pending",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "bge-m3"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "7efeb050-8bf6-46f8-be99-74a01ea715b1",
+      "name": "Embed"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO news_embeddings (article_id, model, embedding)\nVALUES (\n  {{ $('Get Pending').item.json.id }},\n  'bge-m3',\n  '{{ JSON.stringify($json.embeddings[0]) }}'::vector\n)\nON CONFLICT (article_id) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "295fe9a0-9933-4ea4-912b-cf882e5babae",
+      "name": "Save Embedding",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -192
+      ],
+      "id": "c7bbc8bc-deae-4ad6-8a86-17918b51b14f",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending": {
+      "main": [
+        [
+          {
+            "node": "Embed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed": {
+      "main": [
+        [
+          {
+            "node": "Save Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        18
+      ],
+      "recurrenceRuleSignatures": [
+        "hours:6"
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "5dee2db0-0199-4813-bd8d-ae157dd5630b",
+  "activeVersionId": "5dee2db0-0199-4813-bd8d-ae157dd5630b",
+  "versionCounter": 24,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:55:13.506Z",
+      "createdAt": "2026-10-18T08:55:13.506Z",
+      "id": "zJvCRrfnT3kfW7h9",
+      "name": "DATA"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-17T19:38:25.121Z",
+      "createdAt": "2026-10-17T19:38:25.121Z",
+      "role": "workflow:owner",
+      "workflowId": "dwQZsajbCkxms32g",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 5dee2db0",
+    "description": ""
+  }
+}

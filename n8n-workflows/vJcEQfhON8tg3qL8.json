@@ -1,0 +1,335 @@
+{
+  "updatedAt": "2026-10-18T19:45:58.832Z",
+  "createdAt": "2026-10-18T19:19:19.227Z",
+  "id": "vJcEQfhON8tg3qL8",
+  "name": "2 Telegram Agent",
+  "description": "Market Agent · Search News · Daily Brief",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {
+          "systemMessage": "คุณคือผู้ช่วยวิเคราะห์หุ้นในพอร์ตของผู้ใช้ (หุ้นอเมริกา 40 ตัว ส่วนใหญ่เป็นหุ้นเทค)\nวันนี้คือ {{ $now.toFormat('yyyy-MM-dd') }}\n\nหลักการ:\n- ใช้เครื่องมือดึงข้อมูลจริงก่อนตอบทุกครั้งที่ถามเรื่องราคาหรือข่าว\n- ตอบจากข้อมูลที่ได้เท่านั้น ถ้าไม่มีข้อมูลให้บอกตรงๆ ห้ามเรียกเครื่องมือเดิมซ้ำ\n- ไม่ต้องอธิบายขั้นตอนการทำงาน ไม่ต้องขอโทษ และไม่แนะนำให้ซื้อหรือขาย\n- ข้อมูลที่เครื่องมือส่งกลับมาถูกต้องและเชื่อถือได้ ไม่ต้องสงสัยหรือพูดถึงการเรียกเครื่องมือ\n\nรูปแบบคำตอบ (แสดงใน Telegram บนมือถือ):\n- บรรทัดแรกเป็นหัวข้อตัวหนาพร้อมอีโมจิ เช่น **📈 MU · 5 วันล่าสุด**\n- ใช้ • นำหน้า บรรทัดละ 1 ประเด็น\n- ตัวเลขสำคัญเป็นตัวหนา เช่น **-11.9%** หรือ **$165.47**\n- อีโมจินำหน้า: 📈 ขึ้น · 📉 ลง · 📰 ข่าว · 👀 ข้อสังเกต\n- เว้นบรรทัดว่างระหว่างส่วน\n- ห้ามใช้ตารางและเครื่องหมาย #\n- รวมไม่เกิน 8 บรรทัด\n\nตัวอย่าง:\n**📉 CRWV · ร่วงแรง**\n\n• ปิดที่ **$61.39** ลดลง **-11.9%**\n• 📰 ตลาดกังวลหนี้ **$27.6B** (The Motley Fool)\n\n👀 ทั้งกลุ่ม neocloud ลงพร้อมกัน"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "70b96f9e-709e-4978-95c6-201bf9e0bd3a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        208
+      ],
+      "id": "15d235e7-8155-4c67-9361-63c332e91b1e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        96,
+        208
+      ],
+      "id": "08fd8ac9-78bb-4b48-af36-60915d0ab7b0",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ddViBKcAn10MQZU8",
+          "name": "Claude API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงราคาปิดรายวันของหุ้น 1 ตัวย้อนหลัง ใช้เมื่อต้องการรู้ราคาหรือการเปลี่ยนแปลงของราคา",
+        "operation": "executeQuery",
+        "query": "SELECT s.symbol, p.trade_date, p.close, p.volume, NULL AS note\nFROM daily_prices p JOIN stocks s ON s.id = p.stock_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT UPPER($1), NULL, NULL, NULL,\n       'ไม่พบหุ้น ' || UPPER($1) || ' ในระบบ (ติดตามเฉพาะ 40 ตัวใน watchlist)'\nWHERE NOT EXISTS (SELECT 1 FROM stocks WHERE symbol = UPPER($1))\nORDER BY trade_date DESC NULLS FIRST\nLIMIT LEAST($2::int, 60);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}, {{ $fromAI('days', 'จำนวนวันย้อนหลัง 1 ถึง 60', 'number') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        384,
+        208
+      ],
+      "id": "540f8986-5a8e-4365-9e3b-ffb476928d20",
+      "name": "get_price_history",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงข่าวล่าสุดที่เกี่ยวข้องกับหุ้น 1 ตัว ใช้เมื่อต้องการรู้สาเหตุหรือเหตุการณ์ของหุ้นตัวนั้น",
+        "operation": "executeQuery",
+        "query": "SELECT s.symbol, a.published_at::date AS date, a.source, a.title, LEFT(a.summary, 300) AS summary, NULL AS note\nFROM news_stocks ns\nJOIN stocks s ON s.id = ns.stock_id\nJOIN news_articles a ON a.id = ns.article_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT UPPER($1), NULL, NULL, NULL, NULL, 'ไม่มีข่าวของ ' || UPPER($1) || ' ในฐานข้อมูล'\nWHERE NOT EXISTS (\n  SELECT 1 FROM news_stocks ns JOIN stocks s ON s.id = ns.stock_id WHERE s.symbol = UPPER($1))\nORDER BY date DESC NULLS FIRST\nLIMIT 5;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        544,
+        208
+      ],
+      "id": "0c34d3a5-caa4-424e-b986-b86e70e3d93e",
+      "name": "get_stock_news",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -336,
+        0
+      ],
+      "id": "cfa412c8-d34c-40bb-ba98-ff442b3820d0",
+      "name": "Telegram Trigger",
+      "webhookId": "d9394367-68ce-4f72-bcfc-8fd565dd9f79",
+      "credentials": {
+        "telegramApi": {
+          "id": "ewUpSs67NT69XJNn",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d4331aee-c15c-4861-a1f0-2f8648d3fdfd",
+              "leftValue": "={{ $json.message.chat.id }}",
+              "rightValue": "YOUR_TELEGRAM_CHAT_ID",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "f4fefac1-65a4-4e34-9a70-173e22f17644",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -112,
+        0
+      ],
+      "id": "7c946fc3-b08e-48ee-8520-feecb3aa687a",
+      "name": "Only Me"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        0
+      ],
+      "id": "9d19b571-356a-4d19-b090-ca98d9a217b0",
+      "name": "Reply",
+      "webhookId": "fa1bc6b6-2c06-4ae5-a9d6-6c9b90660024",
+      "credentials": {
+        "telegramApi": {
+          "id": "ewUpSs67NT69XJNn",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_price_history": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_stock_news": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Only Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only Me": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "68f54d9e-543b-4501-8b36-151715255cd9",
+  "activeVersionId": "68f54d9e-543b-4501-8b36-151715255cd9",
+  "versionCounter": 30,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:57:24.204Z",
+      "createdAt": "2026-10-18T08:57:24.204Z",
+      "id": "q5T5GRcLJ1lKsSeT",
+      "name": "AI"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-18T19:19:19.227Z",
+      "createdAt": "2026-10-18T19:19:19.227Z",
+      "role": "workflow:owner",
+      "workflowId": "vJcEQfhON8tg3qL8",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 68f54d9e",
+    "description": ""
+  }
+}

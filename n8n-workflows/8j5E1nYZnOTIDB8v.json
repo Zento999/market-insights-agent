@@ -1,0 +1,177 @@
+{
+  "updatedAt": "2026-10-21T13:05:49.078Z",
+  "createdAt": "2026-10-17T16:15:34.949Z",
+  "id": "8j5E1nYZnOTIDB8v",
+  "name": "1 Backfill Prices",
+  "description": "Fetch Prices · Fetch News · Embed News · Backfill Prices",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "50ef2175-5d33-4e83-8e80-41fab1102698",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.massive.com/v2/aggs/ticker/{{ $json.symbol }}/range/1/day/{{ $now.minus({ years: 1 }).toFormat('yyyy-MM-dd') }}/{{ $now.toFormat('yyyy-MM-dd') }}?adjusted=true&sort=asc&limit=5000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 13000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "a37e313c-ad06-4f3a-aed9-ee062b94d1cb",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IfI77F5wOXTyGEDF",
+          "name": "Massive API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH saved AS (\n  INSERT INTO daily_prices (stock_id, trade_date, open, high, low, close, volume)\n  SELECT s.id,\n         (to_timestamp(r.t / 1000.0) AT TIME ZONE 'America/New_York')::date,\n         r.o, r.h, r.l, r.c, round(r.v)::bigint\n  FROM jsonb_to_recordset($data${{ JSON.stringify($json.results || []) }}$data$::jsonb)\n       AS r(o numeric, h numeric, l numeric, c numeric, v numeric, t bigint)\n  JOIN stocks s ON s.symbol = '{{ $json.ticker }}'\n   AND (s.listed_since IS NULL\n        OR (to_timestamp(r.t / 1000.0) AT TIME ZONE 'America/New_York')::date >= s.listed_since)\n  ON CONFLICT (stock_id, trade_date) DO UPDATE SET\n      open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,\n      close = EXCLUDED.close, volume = EXCLUDED.volume, fetched_at = now()\n  RETURNING 1\n)\nSELECT '{{ $json.ticker }}' AS symbol, COUNT(*) AS rows_saved FROM saved;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "f169a50e-d802-4413-8d96-bd5e037a1045",
+      "name": "Save Prices",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT symbol FROM stocks WHERE is_active ORDER BY symbol;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c55e4b0f-c37f-4bfb-b0cd-5ab0709a3e4e",
+      "name": "Get Symbols",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Save Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Symbols": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "c2dd85d6-c8e0-436c-8c91-22d65d3ae97d",
+  "activeVersionId": null,
+  "versionCounter": 20,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:55:13.506Z",
+      "createdAt": "2026-10-18T08:55:13.506Z",
+      "id": "zJvCRrfnT3kfW7h9",
+      "name": "DATA"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-17T16:15:34.949Z",
+      "createdAt": "2026-10-17T16:15:34.949Z",
+      "role": "workflow:owner",
+      "workflowId": "8j5E1nYZnOTIDB8v",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

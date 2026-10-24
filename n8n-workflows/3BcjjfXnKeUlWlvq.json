@@ -1,0 +1,274 @@
+{
+  "updatedAt": "2026-10-18T16:47:11.890Z",
+  "createdAt": "2026-10-18T06:57:07.284Z",
+  "id": "3BcjjfXnKeUlWlvq",
+  "name": "2 Daily Brief",
+  "description": "Market Agent · Search News · Daily Brief",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e7345fed-394c-4b78-b9ea-fb5697d3bbb6",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        384,
+        208
+      ],
+      "id": "82c53592-7e25-4875-b0e9-df68c9b6eab7",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ddViBKcAn10MQZU8",
+          "name": "Claude API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ranked AS (\n  SELECT p.stock_id, s.symbol, s.sector, p.trade_date, p.close,\n         LAG(p.close) OVER (PARTITION BY p.stock_id ORDER BY p.trade_date) AS prev_close\n  FROM daily_prices p JOIN stocks s ON s.id = p.stock_id\n),\nlatest AS (\n  SELECT * FROM ranked\n  WHERE trade_date = (SELECT MAX(trade_date) FROM daily_prices) AND prev_close IS NOT NULL\n),\nbreadth AS (\n  SELECT 'หุ้นในพอร์ต: ขึ้น ' || COUNT(*) FILTER (WHERE close > prev_close)\n      || ' ตัว / ลง ' || COUNT(*) FILTER (WHERE close < prev_close)\n      || ' ตัว จากทั้งหมด ' || COUNT(*) || ' ตัว' AS txt\n  FROM latest\n),\nsectors AS (\n  SELECT string_agg(sector || ': ' || avg_chg || '%', E'\\n' ORDER BY avg_chg DESC) AS txt\n  FROM (SELECT sector, ROUND(AVG((close / prev_close - 1) * 100), 2) AS avg_chg\n        FROM latest GROUP BY sector) x\n),\nmovers AS (\n  SELECT stock_id, symbol, sector, ROUND((close / prev_close - 1) * 100, 2) AS change_pct\n  FROM latest ORDER BY ABS(close / prev_close - 1) DESC LIMIT 5\n),\nmovers_txt AS (\n  SELECT string_agg(\n    m.symbol || ' (' || m.sector || '): ' || m.change_pct || '%' || E'\\n' ||\n    COALESCE(\n      (SELECT string_agg(line, E'\\n') FROM (\n         SELECT '  - [' || a.source || '] ' || a.title || ': ' || LEFT(COALESCE(a.summary, ''), 300) AS line\n         FROM news_stocks ns JOIN news_articles a ON a.id = ns.article_id\n         WHERE ns.stock_id = m.stock_id AND a.published_at >= now() - INTERVAL '7 days'\n         ORDER BY a.published_at DESC LIMIT 3) x),\n      '  - (ไม่มีข่าวในฐานข้อมูล)'),\n    E'\\n\\n' ORDER BY ABS(m.change_pct) DESC) AS txt\n  FROM movers m\n)\nSELECT to_char((SELECT MAX(trade_date) FROM daily_prices), 'YYYY-MM-DD') AS report_date,\n       b.txt || E'\\n\\n' ||\n       'ภาพรวมรายกลุ่ม (เฉลี่ย % เปลี่ยนแปลง):' || E'\\n' || s.txt || E'\\n\\n' ||\n       'หุ้นที่ขยับแรงที่สุด:' || E'\\n' || m.txt AS context\nFROM breadth b, sectors s, movers_txt m\nWHERE NOT EXISTS (\n  SELECT 1 FROM ai_reports\n  WHERE report_type = 'daily_brief'\n    AND report_date = (SELECT MAX(trade_date) FROM daily_prices)\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "22c2e676-fd3b-4c86-bc75-1ceccfb0a758",
+      "name": "Build Context",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=คุณคือนักวิเคราะห์ที่เขียนสรุปตลาดหุ้นอเมริกาประจำวัน ให้นักลงทุนรายย่อยอ่านบนมือถือ\n\nข้อมูลวันที่ {{ $json.report_date }}:\n\n{{ $json.context }}\n\nเขียนสรุปตามรูปแบบนี้:\n📊 ภาพรวม: (1–2 บรรทัด กลุ่มไหนเด่น กลุ่มไหนอ่อน)\n🔥 หุ้นเด่น: (ไม่เกิน 3 ตัว พร้อม % และสาเหตุจากข่าว ถ้ามี)\n👀 ข้อสังเกต: (1 บรรทัด)\n\nกฎ:\n- ใช้เฉพาะข้อมูลข้างบน ถ้าไม่มีข่าวอธิบาย ให้เขียนว่า \"ไม่พบข่าวที่อธิบายได้\"\n- อ้างอิงแหล่งข่าวในวงเล็บ\n- ภาษาไทย รวมไม่เกิน 8 บรรทัด ไม่แนะนำให้ซื้อหรือขาย",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        0
+      ],
+      "id": "fb9b8624-6452-44db-a9fb-5d097d7119c5",
+      "name": "Write Brief",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 19,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "2201467e-4eb9-4e2a-90dd-84433afbc1d2",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ai_reports (report_date, report_type, content, model)\nVALUES (\n  '{{ $('Build Context').item.json.report_date }}'::date,\n  'daily_brief',\n  $report${{ $json.text }}$report$,\n  'claude-haiku-5-5'\n)\nON CONFLICT (report_date, report_type) DO UPDATE SET\n  content = EXCLUDED.content, model = EXCLUDED.model, created_at = now()\nRETURNING id, report_date;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        816,
+        0
+      ],
+      "id": "adef8df4-ed06-450b-9c1e-9aca4ffea7e5",
+      "name": "Save Report",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $('Write Brief').item.json.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "f427a6a1-1450-453f-ba1d-13fa15791305",
+      "name": "Send a text message",
+      "webhookId": "49a52949-3d37-4380-a5e3-dadbca0a7862",
+      "credentials": {
+        "telegramApi": {
+          "id": "ewUpSs67NT69XJNn",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Brief",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "node": "Write Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Brief": {
+      "main": [
+        [
+          {
+            "node": "Save Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Report": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "779969ef-396c-4561-992c-2aeb638f82c1",
+  "activeVersionId": "779969ef-396c-4561-992c-2aeb638f82c1",
+  "versionCounter": 37,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:57:24.204Z",
+      "createdAt": "2026-10-18T08:57:24.204Z",
+      "id": "q5T5GRcLJ1lKsSeT",
+      "name": "AI"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-18T06:57:07.284Z",
+      "createdAt": "2026-10-18T06:57:07.284Z",
+      "role": "workflow:owner",
+      "workflowId": "3BcjjfXnKeUlWlvq",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version 779969ef",
+    "description": ""
+  }
+}

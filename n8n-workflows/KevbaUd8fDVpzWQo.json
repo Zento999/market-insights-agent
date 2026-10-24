@@ -1,0 +1,230 @@
+{
+  "updatedAt": "2026-10-18T09:00:03.540Z",
+  "createdAt": "2026-10-18T07:32:16.359Z",
+  "id": "KevbaUd8fDVpzWQo",
+  "name": "2 Market Agent",
+  "description": "Market Agent · Search News · Daily Brief",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cd9f4f4a-6cea-4ba4-a72c-691b81980dbf",
+      "name": "When chat message received",
+      "webhookId": "8446e0a4-786b-42d2-a0c3-996ec7ff286d"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "คุณคือผู้ช่วยวิเคราะห์หุ้นในพอร์ตของผู้ใช้ (หุ้นอเมริกา 40 ตัว ส่วนใหญ่เป็นหุ้นเทค)\nวันนี้คือ {{ $now.toFormat('yyyy-MM-dd') }}\n\n- ใช้เครื่องมือเพื่อดึงข้อมูลจริงก่อนตอบทุกครั้งที่ถามเรื่องราคาหรือข่าว\n- ตอบจากข้อมูลที่ได้จากเครื่องมือเท่านั้น ถ้าไม่มีข้อมูลให้บอกตรงๆ\n- อ้างอิงแหล่งข่าวเมื่อพูดถึงข่าว\n- ตอบเป็นภาษาไทย กระชับ และไม่แนะนำให้ซื้อหรือขาย\n- ตอบไม่เกิน 5 บรรทัด เน้นตัวเลขและข้อเท็จจริง\n- ไม่ต้องอธิบายขั้นตอนการทำงานหรือการเรียกเครื่องมือ และไม่ต้องขอโทษ\n- ถ้าเครื่องมือแจ้งว่าไม่พบข้อมูล ให้แจ้งผู้ใช้ตรงๆ ทันที ห้ามเรียกเครื่องมือเดิมซ้ำ"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "670295f2-f88c-4b99-94ba-85eca966ad61",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        208
+      ],
+      "id": "09d142b2-ea8d-4220-aaea-5f97c598ebf0",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        96,
+        208
+      ],
+      "id": "a58c7809-71db-4203-a917-b334bb52120e",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ddViBKcAn10MQZU8",
+          "name": "Claude API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงราคาปิดรายวันของหุ้น 1 ตัวย้อนหลัง ใช้เมื่อต้องการรู้ราคาหรือการเปลี่ยนแปลงของราคา",
+        "operation": "executeQuery",
+        "query": "SELECT p.trade_date, p.close, p.volume, NULL AS note\nFROM daily_prices p JOIN stocks s ON s.id = p.stock_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT NULL, NULL, NULL,\n       'ไม่พบหุ้น ' || UPPER($1) || ' ในระบบ (ติดตามเฉพาะ 40 ตัวใน watchlist)'\nWHERE NOT EXISTS (SELECT 1 FROM stocks WHERE symbol = UPPER($1))\nORDER BY trade_date DESC NULLS FIRST\nLIMIT LEAST($2::int, 60);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}, {{ $fromAI('days', 'จำนวนวันย้อนหลัง 1 ถึง 60', 'number') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        384,
+        208
+      ],
+      "id": "d97b7725-5ecd-4aa4-b131-07d96e6a9cb7",
+      "name": "get_price_history",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงข่าวล่าสุดที่เกี่ยวข้องกับหุ้น 1 ตัว ใช้เมื่อต้องการรู้สาเหตุหรือเหตุการณ์ของหุ้นตัวนั้น",
+        "operation": "executeQuery",
+        "query": "SELECT a.published_at::date AS date, a.source, a.title, LEFT(a.summary, 300) AS summary, NULL AS note\nFROM news_stocks ns\nJOIN stocks s ON s.id = ns.stock_id\nJOIN news_articles a ON a.id = ns.article_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT NULL, NULL, NULL, NULL, 'ไม่มีข่าวของ ' || UPPER($1) || ' ในฐานข้อมูล'\nWHERE NOT EXISTS (\n  SELECT 1 FROM news_stocks ns JOIN stocks s ON s.id = ns.stock_id WHERE s.symbol = UPPER($1))\nORDER BY date DESC NULLS FIRST\nLIMIT 5;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        544,
+        208
+      ],
+      "id": "5424f9c8-4194-4c0f-8c19-83e4e129ce97",
+      "name": "get_stock_news",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_price_history": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_stock_news": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "ebf043d0-152a-4d16-be82-d6a34749aba4",
+  "activeVersionId": null,
+  "versionCounter": 30,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:57:24.204Z",
+      "createdAt": "2026-10-18T08:57:24.204Z",
+      "id": "q5T5GRcLJ1lKsSeT",
+      "name": "AI"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-18T07:32:16.359Z",
+      "createdAt": "2026-10-18T07:32:16.359Z",
+      "role": "workflow:owner",
+      "workflowId": "KevbaUd8fDVpzWQo",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

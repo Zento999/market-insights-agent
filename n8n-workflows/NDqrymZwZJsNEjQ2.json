@@ -1,0 +1,179 @@
+{
+  "updatedAt": "2026-10-18T15:58:50.918Z",
+  "createdAt": "2026-10-17T16:54:23.948Z",
+  "id": "NDqrymZwZJsNEjQ2",
+  "name": "1 Fetch News",
+  "description": "Fetch Prices · Fetch News · Embed News · Backfill Prices",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        0
+      ],
+      "id": "b83ec559-7d01-4fd0-b272-8a684006ec98",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.massive.com/v2/reference/news?published_utc.gte={{ $now.minus({ hours: 12 }).toUTC().toFormat(\"yyyy-MM-dd'T'HH:mm:ss'Z'\") }}&order=desc&sort=published_utc&limit=300",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9720d039-0d65-44e3-b009-ab69da03b6d7",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "maxTries": 5,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IfI77F5wOXTyGEDF",
+          "name": "Massive API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH incoming AS (\n  SELECT r.article_url AS url, r.title, r.description AS summary,\n         r.publisher->>'name' AS source, r.published_utc AS published_at, r.tickers\n  FROM jsonb_to_recordset($data${{ JSON.stringify($json.results || []) }}$data$::jsonb)\n       AS r(article_url text, title text, description text, publisher jsonb,\n            published_utc timestamptz, tickers jsonb)\n  WHERE r.article_url IS NOT NULL AND r.title IS NOT NULL\n),\nmatches AS (\n  SELECT DISTINCT i.url, s.id AS stock_id\n  FROM incoming i\n  CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(i.tickers, '[]'::jsonb)) AS t(symbol)\n  JOIN stocks s ON s.symbol = t.symbol AND s.is_active\n),\nnew_articles AS (\n  INSERT INTO news_articles (url, title, summary, source, published_at)\n  SELECT DISTINCT ON (i.url) i.url, i.title, i.summary, i.source, i.published_at\n  FROM incoming i\n  WHERE i.url IN (SELECT url FROM matches)\n  ON CONFLICT (url) DO NOTHING\n  RETURNING id, url\n),\nnew_links AS (\n  INSERT INTO news_stocks (article_id, stock_id)\n  SELECT na.id, m.stock_id\n  FROM new_articles na\n  JOIN matches m ON m.url = na.url\n  ON CONFLICT DO NOTHING\n  RETURNING 1\n)\nSELECT (SELECT COUNT(*) FROM incoming)            AS fetched,\n       (SELECT COUNT(DISTINCT url) FROM matches)  AS relevant,\n       (SELECT COUNT(*) FROM new_articles)        AS new_articles,\n       (SELECT COUNT(*) FROM new_links)           AS new_links;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "e6d6a7b1-1ec0-4108-93b1-e29d304baca3",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -224,
+        -208
+      ],
+      "id": "5a88a649-0429-4a0d-937d-e1f8a25d2a27",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": [
+        0
+      ],
+      "recurrenceRuleSignatures": [
+        "hours:6"
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "aa8f07ca-9b49-49f6-9969-33a0e101d05b",
+  "activeVersionId": "aa8f07ca-9b49-49f6-9969-33a0e101d05b",
+  "versionCounter": 26,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:55:13.506Z",
+      "createdAt": "2026-10-18T08:55:13.506Z",
+      "id": "zJvCRrfnT3kfW7h9",
+      "name": "DATA"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-17T16:54:23.948Z",
+      "createdAt": "2026-10-17T16:54:23.948Z",
+      "role": "workflow:owner",
+      "workflowId": "NDqrymZwZJsNEjQ2",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version aa8f07ca",
+    "description": ""
+  }
+}

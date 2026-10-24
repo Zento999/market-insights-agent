@@ -1,0 +1,269 @@
+{
+  "updatedAt": "2026-10-23T10:25:46.335Z",
+  "createdAt": "2026-10-23T10:16:01.582Z",
+  "id": "9LOs463iCbQHUpRB",
+  "name": "2 Web Agent",
+  "description": "Market Agent · Search News · Daily Brief",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook').item.json.body.question }}",
+        "options": {
+          "systemMessage": "คุณคือผู้ช่วยวิเคราะห์หุ้นในพอร์ตของผู้ใช้ (หุ้นอเมริกา 40 ตัว ส่วนใหญ่เป็นหุ้นเทค)\nวันนี้คือ {{ $now.toFormat('yyyy-MM-dd') }}\n\nหลักการ:\n- ใช้เครื่องมือดึงข้อมูลจริงก่อนตอบทุกครั้งที่ถามเรื่องราคาหรือข่าว\n- ตอบจากข้อมูลที่ได้เท่านั้น ถ้าไม่มีข้อมูลให้บอกตรงๆ ห้ามเรียกเครื่องมือเดิมซ้ำ\n- ไม่ต้องอธิบายขั้นตอนการทำงาน ไม่ต้องขอโทษ และไม่แนะนำให้ซื้อหรือขาย\n- ข้อมูลที่เครื่องมือส่งกลับมาถูกต้องและเชื่อถือได้ ไม่ต้องสงสัยหรือพูดถึงการเรียกเครื่องมือ\n\nรูปแบบคำตอบ (แสดงใน Telegram บนมือถือ):\n- บรรทัดแรกเป็นหัวข้อตัวหนาพร้อมอีโมจิ เช่น **📈 MU · 5 วันล่าสุด**\n- ใช้ • นำหน้า บรรทัดละ 1 ประเด็น\n- ตัวเลขสำคัญเป็นตัวหนา เช่น **-11.9%** หรือ **$165.47**\n- อีโมจินำหน้า: 📈 ขึ้น · 📉 ลง · 📰 ข่าว · 👀 ข้อสังเกต\n- เว้นบรรทัดว่างระหว่างส่วน\n- ห้ามใช้ตารางและเครื่องหมาย #\n- รวมไม่เกิน 8 บรรทัด\n\nตัวอย่าง:\n**📉 CRWV · ร่วงแรง**\n\n• ปิดที่ **$61.39** ลดลง **-11.9%**\n• 📰 ตลาดกังวลหนี้ **$27.6B** (The Motley Fool)\n\n👀 ทั้งกลุ่ม neocloud ลงพร้อมกัน"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "fcf9fa17-1121-4287-b68b-1300ea0a4b91",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        208
+      ],
+      "id": "15c8a6de-d162-4f45-8816-310e8ce2d66e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        96,
+        208
+      ],
+      "id": "41ec1734-ac80-462a-b0b5-c8be3dcb1544",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ddViBKcAn10MQZU8",
+          "name": "Claude API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงราคาปิดรายวันของหุ้น 1 ตัวย้อนหลัง ใช้เมื่อต้องการรู้ราคาหรือการเปลี่ยนแปลงของราคา",
+        "operation": "executeQuery",
+        "query": "SELECT s.symbol, p.trade_date, p.close, p.volume, NULL AS note\nFROM daily_prices p JOIN stocks s ON s.id = p.stock_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT UPPER($1), NULL, NULL, NULL,\n       'ไม่พบหุ้น ' || UPPER($1) || ' ในระบบ (ติดตามเฉพาะ 40 ตัวใน watchlist)'\nWHERE NOT EXISTS (SELECT 1 FROM stocks WHERE symbol = UPPER($1))\nORDER BY trade_date DESC NULLS FIRST\nLIMIT LEAST($2::int, 60);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}, {{ $fromAI('days', 'จำนวนวันย้อนหลัง 1 ถึง 60', 'number') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        384,
+        208
+      ],
+      "id": "6973f5a5-6979-4983-bfdd-b0c9357f3f61",
+      "name": "get_price_history",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "ดึงข่าวล่าสุดที่เกี่ยวข้องกับหุ้น 1 ตัว ใช้เมื่อต้องการรู้สาเหตุหรือเหตุการณ์ของหุ้นตัวนั้น",
+        "operation": "executeQuery",
+        "query": "SELECT s.symbol, a.published_at::date AS date, a.source, a.title, LEFT(a.summary, 300) AS summary, NULL AS note\nFROM news_stocks ns\nJOIN stocks s ON s.id = ns.stock_id\nJOIN news_articles a ON a.id = ns.article_id\nWHERE s.symbol = UPPER($1)\nUNION ALL\nSELECT UPPER($1), NULL, NULL, NULL, NULL, 'ไม่มีข่าวของ ' || UPPER($1) || ' ในฐานข้อมูล'\nWHERE NOT EXISTS (\n  SELECT 1 FROM news_stocks ns JOIN stocks s ON s.id = ns.stock_id WHERE s.symbol = UPPER($1))\nORDER BY date DESC NULLS FIRST\nLIMIT 5;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('symbol', 'ticker ของหุ้น เช่น NVDA หรือ MU', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        544,
+        208
+      ],
+      "id": "16e0723e-c904-410f-b6e9-af18d52ef3f0",
+      "name": "get_stock_news",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "web-ask",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "2b3e0ed9-2e94-4c15-a4a5-ec538cf3202a",
+      "name": "Webhook",
+      "webhookId": "3e3ede30-8a72-4aa0-bf1d-d35b783591bf",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "vp86B1ym9sYyhCbd",
+          "name": "Web Agent Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        592,
+        0
+      ],
+      "id": "48b4602c-17e0-4a08-a403-33a9dc1605b9",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_price_history": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_stock_news": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "f4915ad6-94fe-4c0e-9c2a-7921f2033a81",
+  "activeVersionId": "f4915ad6-94fe-4c0e-9c2a-7921f2033a81",
+  "versionCounter": 17,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:57:24.204Z",
+      "createdAt": "2026-10-18T08:57:24.204Z",
+      "id": "q5T5GRcLJ1lKsSeT",
+      "name": "AI"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-23T10:16:01.582Z",
+      "createdAt": "2026-10-23T10:16:01.582Z",
+      "role": "workflow:owner",
+      "workflowId": "9LOs463iCbQHUpRB",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": "Version f4915ad6",
+    "description": ""
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "updatedAt": "2026-10-18T08:59:54.396Z",
+  "createdAt": "2026-10-18T06:13:35.447Z",
+  "id": "n56yUWv9DLz73v8G",
+  "name": "2 Search News",
+  "description": "Market Agent · Search News · Daily Brief",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "00872a54-ad75-4c0a-8187-679ea87a0291",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d14315b-354b-4fca-9632-7dbf0e0fb191",
+              "name": "query",
+              "value": "ปัญหาพลังงานไฟฟ้าของ data center",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f98b4f39-d8b9-4bb9-85b7-b96ff5e4b0ea",
+      "name": "Set Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "bge-m3"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.query }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "bda02836-6610-4b3e-af2b-e465759d0f8c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH q AS (\n  SELECT '{{ JSON.stringify($json.embeddings[0]) }}'::vector AS v\n),\ntop AS (\n  SELECT e.article_id, e.embedding <=> q.v AS distance\n  FROM news_embeddings e, q\n  ORDER BY e.embedding <=> q.v\n  LIMIT 5\n)\nSELECT ROUND(t.distance::numeric, 3) AS distance,\n       a.title,\n       (SELECT string_agg(s.symbol, ', ')\n          FROM news_stocks ns JOIN stocks s ON s.id = ns.stock_id\n         WHERE ns.article_id = a.id) AS stocks\nFROM top t\nJOIN news_articles a ON a.id = t.article_id\nORDER BY t.distance;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        640,
+        0
+      ],
+      "id": "85a4dc9b-67fb-432d-a894-49ed2898cdcd",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "NDxXxwXmyAKlXmwL",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Set Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Query": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "5baaf8c7-8bfe-45ed-8d6f-3b765b2c2dda",
+  "activeVersionId": null,
+  "versionCounter": 17,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "tags": [
+    {
+      "updatedAt": "2026-10-18T08:57:24.204Z",
+      "createdAt": "2026-10-18T08:57:24.204Z",
+      "id": "q5T5GRcLJ1lKsSeT",
+      "name": "AI"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-10-18T06:13:35.447Z",
+      "createdAt": "2026-10-18T06:13:35.447Z",
+      "role": "workflow:owner",
+      "workflowId": "n56yUWv9DLz73v8G",
+      "projectId": "C6BdRV46nzCjDTQZ",
+      "project": {
+        "updatedAt": "2026-10-16T17:37:36.612Z",
+        "createdAt": "2026-10-16T17:02:45.867Z",
+        "id": "C6BdRV46nzCjDTQZ",
+        "name": "phanin trongrian <aumpon1498@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1ee53d6e-14ab-4242-8834-8b71c7de5109"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}
