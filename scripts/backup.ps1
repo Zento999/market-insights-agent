@@ -28,6 +28,16 @@ if ($LASTEXITCODE -ne 0) { throw "export workflow ล้มเหลว" }
 New-Item -ItemType Directory -Force n8n-workflows | Out-Null
 Remove-Item n8n-workflows\*.json -ErrorAction SilentlyContinue   # ลบของเก่า เผื่อมี workflow ถูกลบไปแล้ว
 docker cp "mi-n8n:/tmp/wf/." "n8n-workflows" | Out-Null
+# ปิดบัง Telegram Chat ID ก่อนเก็บเข้า Git (อ่านค่าจาก .env)
+$chatId = ((Get-Content .env | Where-Object { $_ -like 'TELEGRAM_CHAT_ID=*' }) -replace '^TELEGRAM_CHAT_ID=', '').Trim()
+if ($chatId) {
+    Get-ChildItem n8n-workflows\*.json | ForEach-Object {
+        $text = [IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)
+        $masked = $text.Replace("`"$chatId`"", '"YOUR_TELEGRAM_CHAT_ID"')
+        $masked = [regex]::Replace($masked, "(?<![\d`"])$chatId(?![\d`"])", '"YOUR_TELEGRAM_CHAT_ID"')
+        if ($masked -ne $text) { [IO.File]::WriteAllText($_.FullName, $masked, (New-Object Text.UTF8Encoding($false))) }
+    }
+}
 $count = (Get-ChildItem n8n-workflows\*.json).Count
 Write-Host "      ได้ $count workflow ในโฟลเดอร์ n8n-workflows"
 
