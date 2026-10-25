@@ -1,19 +1,17 @@
 # 📈 Market Insights Agent
 
-An automated, self-hosted AI agent that tracks a 40-stock US tech watchlist, collects daily prices and news, understands news by **meaning** (vector search), writes a daily market brief with **Claude**, and delivers it to **Telegram** and a **web dashboard**. It also answers questions about your portfolio from either.
-
-> ระบบ AI ติดตามหุ้นเทคอเมริกา 40 ตัวแบบอัตโนมัติ ดึงราคาและข่าวทุกวัน ค้นข่าวด้วยความหมาย (ภาษาไทยก็ค้นข่าวภาษาอังกฤษเจอ) ให้ Claude เขียนสรุปตลาดส่งเข้า Telegram ทุกเย็น และมีเว็บแดชบอร์ดพร้อมช่องถาม AI · ทุกอย่างรันบนเครื่องตัวเองด้วย Docker
+ระบบ **AI Agent** ที่รันบนเครื่องตัวเอง (self-hosted) คอยติดตามหุ้นเทคอเมริกา 40 ตัวแบบอัตโนมัติ ดึงราคาและข่าวทุกวัน เข้าใจข่าวด้วย **ความหมาย** (vector search) ให้ **Claude** เขียนสรุปตลาดประจำวัน แล้วส่งเข้า **Telegram** และแสดงบน **เว็บแดชบอร์ด** และยังถามคำถามเกี่ยวกับหุ้นในพอร์ตได้จากทั้งสองช่องทาง
 
 ![Home page](docs/screenshots/home.png)
 
 ## ✨ Features
 
-- **Automated data pipeline**: daily end-of-day prices for 40 stocks and market news every 6 hours, with automatic catch-up for missed days
-- **Semantic news search**: news embedded locally with `bge-m3` (Ollama, GPU) and stored in **pgvector**; multilingual, so Thai queries find English articles
-- **AI daily brief**: Claude summarizes market breadth, sector moves and top movers, citing only retrieved news (RAG) and saying so when no news explains a move
-- **AI agent with tools**: Claude chooses its own tools (price history, stock news) to answer questions, reached from Telegram or the website
-- **Web dashboard** (Next.js): market overview, sector heatmap, top movers, interactive price charts, news search and an "Ask AI" chat; installable as a PWA on mobile
-- **Self-hosted**: one `docker compose up -d` starts all five services
+- **Automated data pipeline**: ดึงราคาปิดรายวันของหุ้น 40 ตัว และข่าวตลาดทุก 6 ชั่วโมง ถ้าคอมปิดไปหลายวัน ระบบจะตามเก็บวันที่ขาดให้เอง
+- **Semantic news search**: แปลงข่าวเป็นเวกเตอร์ด้วย `bge-m3` (Ollama บนการ์ดจอ) แล้วเก็บใน **pgvector** รองรับหลายภาษา พิมพ์ค้นเป็นภาษาไทยก็เจอข่าวภาษาอังกฤษ
+- **AI daily brief**: Claude สรุปภาพรวมตลาด กลุ่มหุ้น และหุ้นที่ขยับแรง โดยอ้างอิงเฉพาะข่าวที่ค้นมาได้ (RAG) และบอกตรงๆ เมื่อไม่มีข่าวอธิบายการขยับของหุ้นตัวนั้น
+- **AI agent with tools**: Claude เลือกใช้เครื่องมือเอง (ดึงประวัติราคา, ดึงข่าว) เพื่อตอบคำถาม ใช้งานได้ทั้งใน Telegram และบนเว็บ
+- **Web dashboard** (Next.js): ภาพรวมตลาด, กลุ่มหุ้นไล่สี, Top movers, กราฟราคาแบบโต้ตอบได้, ค้นข่าว และหน้าแชท "ถาม AI" ติดตั้งเป็นแอปบนมือถือได้ (PWA)
+- **Self-hosted**: สั่ง `docker compose up -d` คำสั่งเดียว เปิดครบทั้ง 5 service
 
 | Stock page | Semantic news search | Ask AI |
 |---|---|---|
@@ -53,13 +51,13 @@ flowchart LR
 
 ### Scheduled workflows (n8n)
 
-| Time (Asia/Bangkok) | Workflow | What it does |
+| เวลา (Asia/Bangkok) | Workflow | ทำอะไร |
 |---|---|---|
-| Daily 19:00 | Fetch Prices | Finds missing trading days, fetches grouped daily bars, upserts 40 stocks |
-| Every 6 h | Fetch News | Pulls recent market news, keeps articles tagged with watchlist tickers |
-| Every 6 h (:30) | Embed News | Embeds new articles with `bge-m3` into pgvector |
-| Daily 19:30 | Daily Brief | Builds context (breadth, sectors, movers + news), Claude writes a brief, saves it and sends it to Telegram; skips days with no new market data |
-| On message | Telegram Agent / Web Agent | Claude agent with SQL tools for prices and news |
+| ทุกวัน 19:00 | Fetch Prices | หาวันทำการที่ยังไม่มีราคา แล้วดึงราคาของวันนั้น (grouped daily) มา upsert ครบ 40 ตัว |
+| ทุก 6 ชม. | Fetch News | ดึงข่าวตลาดล่าสุด เก็บเฉพาะข่าวที่เกี่ยวกับหุ้นใน watchlist |
+| ทุก 6 ชม. (นาทีที่ 30) | Embed News | แปลงข่าวใหม่เป็นเวกเตอร์ด้วย `bge-m3` แล้วเก็บลง pgvector |
+| ทุกวัน 19:30 | Daily Brief | เตรียมข้อมูล (ตลาดขึ้น/ลง, กลุ่มหุ้น, หุ้นที่ขยับแรง + ข่าว) ให้ Claude เขียนสรุป บันทึกลงฐานข้อมูล และส่งเข้า Telegram (ถ้าไม่มีข้อมูลตลาดใหม่จะข้ามวันนั้น) |
+| เมื่อมีข้อความเข้า | Telegram Agent / Web Agent | Claude agent ที่มีเครื่องมือ SQL สำหรับดึงราคาและข่าว |
 
 ## 🧰 Tech stack
 
@@ -75,47 +73,47 @@ flowchart LR
 
 ```
 .
-├── docker-compose.yml     # all 5 services
-├── init/                  # database setup (runs on first start)
-│   ├── 01-init.sql        #   app database + pgvector
-│   ├── 02-schema.sql      #   tables, keys, indexes
-│   └── 03-seed-stocks.sql #   40-stock watchlist
-├── n8n-workflows/         # exported n8n workflows (JSON)
-├── scripts/backup.ps1     # database backup + workflow export
-└── web/                   # Next.js dashboard (own Dockerfile)
-    ├── app/               #   pages, API route, PWA manifest/icon
+├── docker-compose.yml     # service ทั้ง 5 ตัว
+├── init/                  # ตั้งค่าฐานข้อมูล (รันตอนเปิดครั้งแรก)
+│   ├── 01-init.sql        #   สร้างฐานข้อมูลของแอป + เปิดใช้ pgvector
+│   ├── 02-schema.sql      #   ตาราง, keys, indexes
+│   └── 03-seed-stocks.sql #   รายชื่อหุ้น 40 ตัว (watchlist)
+├── n8n-workflows/         # workflow ของ n8n ที่ export ไว้ (JSON)
+├── scripts/backup.ps1     # สำรองฐานข้อมูล + export workflow
+└── web/                   # เว็บแดชบอร์ด Next.js (มี Dockerfile ของตัวเอง)
+    ├── app/               #   หน้าเว็บ, API route, PWA manifest/icon
     ├── components/        #   PriceChart, AskBox
-    └── lib/               #   db pool, SQL queries, embeddings
+    └── lib/               #   การเชื่อมต่อฐานข้อมูล, SQL queries, embeddings
 ```
 
 ## 🗄️ Data model
 
-`stocks` · `daily_prices` (PK stock + date, upserted) · `news_articles` (unique URL) · `news_stocks` (many-to-many) · `news_embeddings` (`vector(1024)`, HNSW index) · `ai_reports` (one brief per day)
+`stocks` · `daily_prices` (PK หุ้น + วันที่, upsert) · `news_articles` (URL ไม่ซ้ำ) · `news_stocks` (many-to-many ข่าว ↔ หุ้น) · `news_embeddings` (`vector(1024)`, HNSW index) · `ai_reports` (สรุป 1 ฉบับต่อวัน)
 
 ## 🚀 Running it
 
-Requirements: Docker Desktop (with an NVIDIA GPU for Ollama, or remove the `deploy` block to use CPU), and API keys for Massive, Anthropic and a Telegram bot.
+สิ่งที่ต้องมี: Docker Desktop (ใช้การ์ดจอ NVIDIA สำหรับ Ollama หรือลบบล็อก `deploy` ออกเพื่อใช้ CPU แทน) และ API key ของ Massive, Anthropic และบอท Telegram
 
 ```bash
-cp .env.example .env          # fill in your own values
+cp .env.example .env          # ใส่ค่าของตัวเอง
 docker compose up -d --build
 docker compose exec ollama ollama pull bge-m3
 ```
 
-Then open n8n at `http://localhost:5678`, create the credentials (Postgres, Massive, Claude, Telegram), import the files in `n8n-workflows/`, replace `YOUR_TELEGRAM_CHAT_ID` with your chat ID, and publish the workflows. The dashboard runs at `http://localhost:3000`.
+จากนั้นเปิด n8n ที่ `http://localhost:5678` สร้าง credentials (Postgres, Massive, Claude, Telegram) แล้ว import ไฟล์ในโฟลเดอร์ `n8n-workflows/` เปลี่ยน `YOUR_TELEGRAM_CHAT_ID` เป็น Chat ID ของตัวเอง แล้วกด Publish ทุก workflow ส่วนเว็บแดชบอร์ดเปิดได้ที่ `http://localhost:3000`
 
 ## 🔒 Security notes
 
-- All ports bind to `127.0.0.1`; only the n8n webhook is exposed through ngrok
-- The website uses a **read-only** database role (`SELECT` only, no access to the n8n database)
-- The web-to-n8n webhook requires a shared secret header, kept server-side in a Next.js Route Handler
-- The Telegram agent only answers the owner's chat ID
-- Secrets live in `.env` (git-ignored); exported workflows contain no credentials and the chat ID is masked
+- ทุก port ผูกไว้ที่ `127.0.0.1` (เข้าได้เฉพาะเครื่องตัวเอง) มีเพียง webhook ของ n8n ที่เปิดออกภายนอกผ่าน ngrok
+- เว็บใช้ user ฐานข้อมูลแบบ **อ่านอย่างเดียว** (`SELECT` เท่านั้น และเข้าฐานข้อมูลของ n8n ไม่ได้)
+- webhook ระหว่างเว็บกับ n8n ต้องแนบรหัสลับ (secret header) ซึ่งเก็บไว้ฝั่งเซิร์ฟเวอร์ใน Next.js Route Handler เบราว์เซอร์มองไม่เห็น
+- Telegram agent ตอบเฉพาะ Chat ID ของเจ้าของเท่านั้น
+- ค่าลับทั้งหมดอยู่ใน `.env` (ไม่ขึ้น Git) ส่วน workflow ที่ export ไว้ไม่มี credentials และปิดบัง Chat ID แล้ว
 
 ## 📚 What I learned
 
-Building this end to end covered Docker networking and volumes, relational and vector database design, ETL with idempotent upserts, data-quality issues (such as a reused ticker symbol), embeddings and RAG, prompt and context engineering, tool-using AI agents, and a full Next.js app from server components to a containerized production build. One lesson stood out: when an AI agent explains its own behavior, check the execution logs.
+การสร้างโปรเจกต์นี้ตั้งแต่ต้นจนจบทำให้ได้เรียนรู้ Docker networking และ volumes, การออกแบบฐานข้อมูลทั้งแบบ relational และ vector, การทำ ETL ด้วย upsert ที่รันซ้ำได้ (idempotent), ปัญหาคุณภาพข้อมูลที่เจอ (เช่น ticker ที่ถูกนำกลับมาใช้ใหม่), embeddings และ RAG, prompt engineering และ context engineering, AI agent ที่เลือกใช้เครื่องมือเอง ไปจนถึงการสร้างเว็บ Next.js เต็มรูปแบบตั้งแต่ server components จนถึงการ build เป็น container สำหรับใช้งานจริง บทเรียนที่ชัดที่สุดคือ เมื่อ AI agent อธิบายพฤติกรรมของตัวเอง ให้เช็คจาก execution logs เสมอ
 
 ---
 
-*Not investment advice. Market data is end-of-day and for personal learning.*
+*ไม่ใช่คำแนะนำการลงทุน ข้อมูลตลาดเป็นราคาปิดสิ้นวัน และจัดทำเพื่อการเรียนรู้ส่วนตัว*
